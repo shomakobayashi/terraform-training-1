@@ -1,0 +1,53 @@
+name: terraform
+on:
+  push:
+    branches:
+      - develop
+      - 'feature-#**'
+    paths:
+      - 'projects/**'
+      - '.github/workflows/**'
+  workflow_dispatch:
+    inputs:
+      project_id:
+        description: "Project Identifier"
+        required: true
+      plan_apply_id:
+        type: choice
+        description: "plan/apply"
+        options:
+        - plan
+        - apply
+        required: true
+        default: "plan"
+      tl_approved_id:
+        type: boolean
+        description: "TL Approved"
+        default: false
+      tfstate_uhlock_id:
+        type: boolean
+        description: "tfstate unlock"
+        default: false
+
+jobs:
+  get-information:
+    runs-on: [self-hosted, linux, x64, gdp_infra_full_access]
+
+    env:
+      ENV: "dev"
+      SEPARATOR1: "[["
+      SEPARATOR2: "]]"
+      PROJECTS: "./projects"
+
+    outputs:
+      work_dir: ${{ steps.check_project.outputs.work_dir }}
+      plan_apply: ${{ steps.check_project.outputs.work_dir }}
+      unlock: ${{ steps.check_project.outputs.unlock }}
+      project: ${{ steps.check_project.outputs.project }}
+      tl_approved: ${{ steps.check_project.outputs.tl_approved }}
+
+    steps:
+
+
+
+
