@@ -47,6 +47,40 @@ jobs:
       tl_approved: ${{ steps.check_project.outputs.tl_approved }}
 
     steps:
+      - name: Check Project Identifier
+        id: check_project
+        run:
+          mes=$(echo ${{ github.event.head_commit.message }} | awk '{ gsub("","", $0); print)')
+          sep1=$(echo ${{ env. SEPARATOR1 }})
+          sep2=$(echo ${{ env. SEPARATOR2 }})
+          github_event_name=$(echo ${{ github.event_name }})
+          input_project_id=$(echo ${{ github.event.inputs.project_id }}) 
+          input_plan_apply=$(echo ${{ github.event.inputs.plan_apply_id }})
+          input_unlock=$(echo ${{ github.event.inputs.tfstate_unlock_id }})
+          input_tl_approved=$(echo ${{ github.event.inputs.tl_approved_id }})
+          if [ -n "$input_project_id"] && [ "$github_event_name" == "workflow_dispatch" ]; then
+            project_id=$input_project_id
+          elif [ -z "$input_project_id"] && [ "$github_event_name" == "push" ]; then
+            project_id=$(echo $mes $sep1 $sep2 | awk '{print substr($1, index($1, $2)+length($2), index($1, $3)-index($1, $2)-length($3))}')
+            input_plan_apply="plan"
+          fi
+          if [ -z "$project_id" ]:then
+            echo "プロジェクト識別子未設定なので終了します"
+            echo "work_dir= __not_difined" >> $GITHUB_OUTPUT
+            echo "plan_apply=__not_difined" >> $GITHUB_OUTPUT
+          else
+           echo
+           echo
+           echo
+           echo
+           echo
+          fi
+
+
+
+
+
+          
 
 
 
