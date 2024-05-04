@@ -106,6 +106,7 @@ jobs:
         working-directory: ${{ env.WORKING_DIR }}
         run: terraform plan -no-color
 
+
   B_terraform_apply:
     if: needs.get-information.outputs.plan_apply == 'apply' && needs.get-information.outputs.work_dir != '__not_difined' && needs.get-information.outputs.unlock != 'true' && needs.get-information.outputs.tl_approved == 'true'
     runs-on: [selh-hosted, linux, x64, aws_and_infra_full_access]
@@ -146,12 +147,12 @@ jobs:
       TF_VERSION: "0.14.9"
       AWS_STS_REGIONAL_ENDPOINTS: "regional"
       WORKING_DIR: ${{ needs.get-information.outputs.work_dir }}
-      PLAN_APPLY: ${{ needs.get-information.outputs.plan_apply }}
+      PROJECT: ${{ needs.get-information.outputs.project }}
 
     steps:
       - name: tfstate unlock
         id: unlock
-        run:
-          aws dynamodb describe-table --table-name "dpf-${{ env.ENV }}-dynamodb-terraform-locks"
-          aws dynamodb scan --table-name "dpf-${{ env.ENV }}-dynamodb-terraform-locks"
-          aws dynamodb delete-item --table-name "dpf-${{ env.ENV }}-dynamodb-terraform-locks" --key '{"LockID": { "S": "dpf-${{ env.ENV }}-s3-terraform-state/${{ env.PROJECT }}/terraform.tfstate"}}'
+        run: |
+          aws dynamodb describe-table --table-name "aws-and-infra-${{ env.ENV }}-dynamodb-terraform-locks"
+          aws dynamodb scan --table-name "aws-and-infra-${{ env.ENV }}-dynamodb-terraform-locks"
+          aws dynamodb delete-item --table-name "aws-and-infra-${{ env.ENV }}-dynamodb-terraform-locks" --key '{"LockID": { "S": "aws-and-infra-${{ env.ENV }}-s3-terraform-state/${{ env.PROJECT }}/terraform.tfstate"}}'

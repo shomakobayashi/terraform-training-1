@@ -1,0 +1,46 @@
+version:0.2
+
+env:
+  variables:
+    TF_VERSION: "0.14.9" #インストールするTerraformバージョンを指定する
+    ENV: "dev" #環境（dev,prdを指定）
+
+phases:
+  install:
+    commands:
+      #Install Terraform
+      - echo [INFO] Start installing Terraform ${TF_VERSION}
+      - yum install unzip -y
+      - wget -q https://releases.hashicorp.com/terraform/${TF_VERSION}/terraform_${TF_VERSION}_linux_amd64.zip
+      - unzip terraform_${TF_VERSION_linux_amd64.zip}
+      - mv terraform /usr/local/bin/
+    finally:
+      - terraform --version
+
+  build:
+    commands:
+      #projectsd/配下の各プロジェクトの環境フォルダ配下（dev,prd）にてterraform applyを実行する
+      - target_paths=$(ls -d ${CODEBUILD_SRC_DIR}/projects/*/${ENV})
+      - for path in $target_paths;
+        do
+          cd $path;
+          if [ -e "kick.txt" ]; then
+            echo ------------------------------------------------------------------------------------------------------------------------------------------------;
+            echo [INFO] Run terraform init at $(pwd);
+            terraform init -no-color;
+            echo [INFO] Run terraform validate at $(pwd);
+            terraform validate -no-color;
+            echo [INFO] Run terraform apply at $(pwd);
+            terraform apply --auto-approve -no-color;
+            terraform show -json;
+          else
+            echo [INFO] Skip terraform apply at $(pwd);
+          fi
+        done
+      - echo [INFO] Finish terraform apply at $target_paths
+
+
+
+
+
+    

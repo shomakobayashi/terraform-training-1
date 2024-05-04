@@ -3,7 +3,7 @@ version:0.2
 env:
   variables:
     TF_VERSION: "0.14.9" #インストールするTerraformバージョンを指定する
-    ENV: "dev" #環境（dev,prdを指定）
+    ENV: "prd" #環境（dev,prdを指定）
 
 phases:
   install:
