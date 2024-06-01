@@ -31,16 +31,9 @@ phases:
             echo [INFO] Run terraform validate at $(pwd);
             terraform validate -no-color;
             echo [INFO] Run terraform plan at $(pwd);
-            terraform apply --auto-approve -no-color;
-            terraform show -json;
+            terraform plan -no-color;
           else
             echo [INFO] Skip terraform plan at $(pwd);
           fi
         done
       - echo [INFO] Finish terraform plan at $target_paths
-
-
-
-
-
-    

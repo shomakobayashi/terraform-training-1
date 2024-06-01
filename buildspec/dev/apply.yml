@@ -38,9 +38,3 @@ phases:
           fi
         done
       - echo [INFO] Finish terraform apply at $target_paths
-
-
-
-
-
-    
