@@ -1,0 +1,199 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Terraform CICD pipeline.
+
+Parameters:
+ArtifactS3BucketName:
+Description: The name of the 53 bucket for Terraform CICD Artifact. (New S3 Bucket will be created with this name)
+Type: String
+Default: gdpf-dev-s3-terraform-codepipeline-artifact
+SourceS3BucketName:
+Description: The name of the S3 bucket for Terraform CICD Source. (New S3 Bucket will be created with this name)
+Type: String
+Default: gdpf-dev-s3-terraform-codepipeline-source
+SourceS30bjectKey:
+Description: The S3 object key of Terraform Source. (The change of S3 Objects with this name in SourceS3BucketName will be detected from codepipeline)
+Type: String
+Default: source.zip
+CodePipelineRoleName:
+Description: The name of the IAM Role for Terraform CodePipeline. (New IAM Role will be created with this name)
+Type: String
+Default: gdpf-dev-role-terraform-codepipeline
+
+codeBuildRoleName:
+Description: The name of the IAM Role for Terraform CodeBuild. (New IAM Role will be created with this name)
+Type: String
+Default: gdpf-dev-role-terraform-codebuild
+TerraformPlanCodeBuildName:
+Description: The name of CodeBuild project for terraform plan. (New CodeBuild will be created with this name)
+Type: String
+Default: gdpf-dev-codebuild-terraform-cicd-plan
+TerraformPlanBuildspecLocation:
+Description: The location of buildspec file for Plan stage CodeBuild.
+Type: String
+Default: buildspec/dev/plan.yml
+TerraformApplyCodeBuildName:
+Description: The name of CodeBuild project for terraform apply. (New CodeBuild will be created with this name)
+Type: String
+Default: gdpf-dev-codebuild-terraform-cicd-apply
+TerraformApplyBuildspecLocation:
+Description: The location of buildspec file for Apply stage CodeBuild.
+Type: String
+Default: buildspec/dev/apply.yml
+TerraformCodePipelineName:
+Type: String
+Default: gdpf-dev-codepipeline-terraform
+KMSKeyAliasForArtifactS3Bucket:
+Description: The alias of KMS for the Terraform pipeline artifact S3 bucket. (New KMS will be created with this alias)
+Type: String
+Default: gdpf-dev-kms-terraform-codepipeline-artifact
+KMSKeyAliasForSourceS3Bucket:
+Description: The alias of KMS for the Terraform pipeline source S3 bucket. (New KMS will be created with this alias)
+Type: String
+Default: gdpf-dev-kms-terraform-codepipeline-source
+KMSKeyAliasForTerraformStateS3Bucket:
+Description: The alias of KMS for the Terraform backend S3 bucket. (New KMS will be created with this alias)
+Type: String
+Default: gdpf-dev-kms-terraform-state-bucket
+TerraformStateS3BucketName:
+Description: The name of the S3 bucket for Terraform backend. (New S3 Bucket will be created with this name)
+Type: String
+Default: gdpf-dev-s3-terraform-state
+TerraformBackend DynamoDBTableName:
+Description: The name of the DynamoDB table for Terraform backend. (New DynamoDB table woll be created with this name)
+type: String
+Default: gdpf-dev-dynamodb-terraform-locks
+
+Resoueces:
+####################################################################
+# Terraform バックエンド用のリソースを定義
+####################################################################
+
+# KMS: Stateファイルを格納するS3バケット用
+KMSForTerraformBackendS3Bucket:
+Type: AWS:: KMS:: Key
+Properties:
+Description: KMS for terraform backend s3 bucket.
+KeyPolicy:
+Version: '2012-10-17'
+Id: key-default-1
+Statement:
+# Platform-TODO: キーポリシーの検討
+Sid: Enable IAM User Permissions
+Effect: Allow
+Principal:
+AWS: !Sub 'arn:aws:iam::$(AWS:: AccountId}:root'
+Action: kms:*
+Resource: "*"
+Sid: Allow administration of the key
+Effect: Allow
+Principal:
+AWS:
+- !Sub 'arn:aws:iam::$(AWS::AccountId}:role/AdminRole'
+Action:
+- kms: Create*
+- kms: Describe*
+- kms: Enable*
+- kms: List*
+- kms: Put*
+- kms: Update*
+- kms: Revoke*
+- kms: Disable*
+- kms: Get*
+- kms: Delete*
+- kms: ScheduleKeyDeletion
+- kms: CancelKeyDeletion
+- kms: TagResource
+- kms: UnTagResource
+Resource: '*'
+Sid: Allow use of the key
+Effect: Allow
+Principal:
+AWS:
+- !Sub 'arn:aws:iam::${AWS::AccountId}: role/AdminRole'
+Action:
+- kms: DescribeKey
+- kms: Encrypt
+- kms: Decrypt
+- kms: ReEncrypt*
+- kms: GenerateDataKey
+- kms: GenerateDataKeyWithoutPlaintext
+Resource: "*"
+KMSKeyAliasForTerraformBackendS3Bucket:
+Type: AWS:: KMS:: Alias
+Properties:
+AliasName: !Sub 'alias/${KMSKeyAlias ForTerraformStateS3Bucket)'
+TargetKeyId: !Ref KMSForTerraformBackendS3Bucket
+
+# Stateファイルを格納するS3バケット
+TerraformBackendS3Bucket:
+Type: AWS::S3:: Bucket
+Properties:
+BucketName: !Ref TerraformStateS3BucketName
+AccessControl: Private
+
+PublicAccessBlockConfiguration:
+BlockPublicAcls: true
+BlockPublicPolicy: true
+IgnorePublicAcls: true
+RestrictPublicBuckets: true
+VersioningConfiguration:
+Status: Enabled
+BucketEncryption:
+ServerSideEncryptionConfiguration:
+- ServerSideEncryptionByDefault:
+SSEAlgorithm: 'aws:kms'
+KMSMasterKeyID: !Sub 'arn:aws:kms: ap-northeast-1:${AWS::AccountId}:$(KMSKeyAlias ForTerraformBackendS3Bucket}'
+
+#パケットポリシー: Stateファイルを格納するS3バケット
+TerraformBackendS3BucketPolicy:
+Type: AWS::S3:: BucketPolicy
+Properties:
+PolicyDocument:
+#Platform-TODO: バケットポリシーの検討(以下のパケットポリシーは仮置き)
+Version: 2012-10-17
+Statement:
+Effect: Allow
+Principal:
+AWS:
+- !Sub 'arn:aws:iam::$(AWS::AccountId}:root'
+- !Sub 'arn:aws:iam::${AWS::AccountId}: role/AdminRole'
+Action: 's3:*'
+Resource:
+- !Sub 'arn:aws:s3::: ${TerraformBackendS3Bucket}'
+- !Sub 'arn:aws:s3::: ${TerraformBackendS3Bucket}/*'
+
+Bucket: !Ref TerraformBackendS3Bucket
+
+# State ファイル・lock用 DynamoDB
+TerraformBackendDynamoDBTable:
+Type: AWS:: DynamoDB:: Table
+Properties:
+TableName: !Ref TerraformBackendDynamoDBTableName
+AttributeDefinitions:
+-
+AttributeName: LockID
+AttributeType: S
+KeySchema:
+-
+AttributeName: LockID
+KeyType: HASH
+#Platform-TODO: DynamoDB各種パラメータの検討
+Provisioned Throughput:
+ReadCapacityUnits: 5
+WriteCapacityUnits: 5
+
+####################################################################
+# Terraform CICDパイプライン用のリソース定義
+####################################################################
+
+#S3: CodePipeline Artifact格納用
+TerraformCodePipelineArtifactS3Bucket:
+Type: AWS::S3:: Bucket
+Properties:
+BucketName: !Ref ArtifactS3BucketName
+
+
+
+
+
+

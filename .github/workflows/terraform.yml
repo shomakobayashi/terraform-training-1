@@ -49,7 +49,7 @@ jobs:
     steps:
       - name: Check Project Identifier
         id: check_project
-        run:
+        run: |
           mes=$(echo ${{ github.event.head_commit.message }} | awk '{ gsub("","", $0); print)')
           sep1=$(echo ${{ env. SEPARATOR1 }})
           sep2=$(echo ${{ env. SEPARATOR2 }})
@@ -69,19 +69,90 @@ jobs:
             echo "work_dir= __not_difined" >> $GITHUB_OUTPUT
             echo "plan_apply=__not_difined" >> $GITHUB_OUTPUT
           else
-           echo
-           echo
-           echo
-           echo
-           echo
+           echo "work_dir=${{ env.PROJECTS }}/${project_id}/${{ env.ENV }}/" >> $GITHUB_OUTPUT
+           echo "plan_apply=${input_plan_apply}" >> $GITHUB_OUTPUT
+           echo "unlock=${input_unlock}" >> $GITHUB_OUTPUT
+           echo "project=${input_project_id}" >> $GITHUB_OUTPUT
+           echo "tl_approved=${input_tl_approved}" >> $GITHUB_OUTPUT
           fi
 
+  A_terraform_plan:
+    if: needs.get-information.outputs.work_dir != '__not_difined' && needs.get-information.outputs.unlock != 'true'
+    runs-on: [self-hosted, linux, x64, aws_and_infra_fullaccess]
+    needs: get-information
+
+    env:
+      ENV: "dev"
+      TF_VERSION: "0.14.9"
+      AWS_STS_REGIONAL_ENDPOINTS: "regional"
+      WORKING_DIR: ${{ needs.get-information.outputs.work_dir }}
+      PLAN_APPLY: ${{ needs.get-information.outputs.plan_apply }}
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Terraform Init
+        id: init
+        working-directory: ${{ env.WORKING_DIR }}
+        run: terraform init
+
+      - name: Terraform Validate
+        id: validate
+        working-directory: ${{ env.WORKING_DIR }}
+        run: terraform validate -no-color
+
+      - name: Terraform Plan
+        id: plan
+        working-directory: ${{ env.WORKING_DIR }}
+        run: terraform plan -no-color
 
 
+  B_terraform_apply:
+    if: needs.get-information.outputs.plan_apply == 'apply' && needs.get-information.outputs.work_dir != '__not_difined' && needs.get-information.outputs.unlock != 'true' && needs.get-information.outputs.tl_approved == 'true'
+    runs-on: [selh-hosted, linux, x64, aws_and_infra_full_access]
+    needs: [get-information, A_terraform_plan]
 
+    env:
+      ENV: "dev"
+      TF_VERSION: "0.14.9"
+      AWS_STS_REGIONAL_ENDPOINTS: "regional"
+      WORKING_DIR: ${{ needs.get-information.outputs.work_dir }}
+      PLAN_APPLY: ${{ needs.get-information.outputs.plan_apply }}
 
-          
+    steps:
+      - uses: actions/checkout@v3
 
+      - name: Terraform Init
+        id: init
+        working-directory: ${{ env.WORKING_DIR }}
+        run: terraform init
 
+      - name: Terraform Validate
+        id: validate
+        working-directory: ${{ env.WORKING_DIR }}
+        run: terraform validate -no-color
 
+      - name: Terraform Apply
+        id: apply
+        working-directory: ${{ env.WORKING_DIR }}
+        run: terraform apply -no-color -auto-approve
 
+  C_tfstate_unlock:
+    if: needs.get-information.outputs.unlock == 'true'
+    runs-on: [self-hosted, linux, aws_and_infra_full_access]
+    needs: get-information
+
+    env:
+      ENV: "dev"
+      TF_VERSION: "0.14.9"
+      AWS_STS_REGIONAL_ENDPOINTS: "regional"
+      WORKING_DIR: ${{ needs.get-information.outputs.work_dir }}
+      PROJECT: ${{ needs.get-information.outputs.project }}
+
+    steps:
+      - name: tfstate unlock
+        id: unlock
+        run: |
+          aws dynamodb describe-table --table-name "aws-and-infra-${{ env.ENV }}-dynamodb-terraform-locks"
+          aws dynamodb scan --table-name "aws-and-infra-${{ env.ENV }}-dynamodb-terraform-locks"
+          aws dynamodb delete-item --table-name "aws-and-infra-${{ env.ENV }}-dynamodb-terraform-locks" --key '{"LockID": { "S": "aws-and-infra-${{ env.ENV }}-s3-terraform-state/${{ env.PROJECT }}/terraform.tfstate"}}'
